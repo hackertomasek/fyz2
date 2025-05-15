@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Hledání úloh</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+  </script>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; max-width: 600px; margin: auto; }
+    input, button { margin: 0.5rem 0; width: 100%; padding: 0.5rem; font-size: 1rem; }
+    .result { margin: 0.5rem 0; padding: 0.5rem; background: #f3f3f3; border-left: 4px solid #007acc; }
+    .highlight { background: yellow; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <body>
+  <div style="text-align: center;">
+    <img src="logo.jpg" alt="Logo" style="max-width: 120px; margin-bottom: 1rem;">
+  </div>
+
+  <h2>🔍 Hledej úlohu v PDF</h2>
+  <input type="file" id="file-input" accept="application/pdf">
+  <input type="text" id="search-input" placeholder="Zadej číslo úlohy, např. 3.42">
+  <div id="results"></div>
+
+  <script>
+    const fileInput = document.getElementById("file-input");
+    const searchInput = document.getElementById("search-input");
+    const resultsDiv = document.getElementById("results");
+    let pdf = null;
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file || file.type !== "application/pdf") return alert("Vyber PDF soubor.");
+      const arrayBuffer = await file.arrayBuffer();
+      pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      resultsDiv.innerHTML = "<i>PDF načteno. Teď napiš číslo úlohy.</i>";
+    });
+
+    searchInput.addEventListener("input", async () => {
+      const query = searchInput.value.trim();
+      if (!pdf || !query) return;
+      resultsDiv.innerHTML = "<i>Hledám...</i>";
+      let results = [];
+
+      for (let i = 0; i < pdf.numPages; i++) {
+        const page = await pdf.getPage(i + 1);
+        const content = await page.getTextContent();
+        const textItems = content.items.map(item => item.str).join(" ");
+        if (textItems.includes(query)) {
+          const context = getSentenceAround(textItems, query);
+          results.push({
+            page: i + 1,
+            text: context.replace(query, `<span class="highlight">${query}</span>`)
+          });
+        }
+      }
+
+      if (results.length === 0) {
+        resultsDiv.innerHTML = "<i>Nic nenalezeno.</i>";
+      } else {
+        resultsDiv.innerHTML = results.map(r => `
+          <div class="result">
+            <strong>Strana ${r.page}</strong><br>${r.text}
+          </div>
+        `).join("");
+      }
+    });
+
+    function getSentenceAround(text, term) {
+      const index = text.indexOf(term);
+      if (index === -1) return "";
+      const start = text.lastIndexOf(".", index) + 1;
+      const end = text.indexOf(".", index + term.length);
+      return text.substring(start, end + 1).trim();
+    }
+  </script>
+</body>
+</html>
